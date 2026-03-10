@@ -1,59 +1,53 @@
 import { test, expect } from "@playwright/test";
 
-test("יצירת פוסט - חזרה ל-URL מקורי עם עקיפת פופ-אפ", async ({ page }) => {
+test("יצירת פוסט בוורדפרס - גרסה סופית עם XPath מותאם", async ({ page }) => {
+  // הגדרת זמן המתנה ארוך יותר למקרה שהסביבה איטית
   test.setTimeout(60000);
 
   // 1. התחברות (Login)
   await page.goto("http://localhost:8080/wp-login.php");
-  await page.fill("#user_login", "admin");
-  await page.fill("#user_pass", "Yoav2001!");
-  await page.click("#wp-submit");
+  await page.locator("#user_login").fill("admin");
+  await page.locator("#user_pass").fill("Yoav2001!");
+  await page.locator("#wp-submit").click();
 
-  // 2. ניווט לעמוד פוסט חדש (חזרה לכתובת המקורית שביקשת)
+  // 2. ניווט לעמוד פוסט חדש וניקוי פופ-אפים
   await page.goto("http://localhost:8080/wp-admin/post-new.php");
 
-  // המתנה לטעינה ראשונית של הדף
-  await page.waitForLoadState("networkidle");
-
-  // 3. סגירת הפופ-אפ - ננסה גם Escape וגם לחיצה על ה-X אם הוא שם
+  // סגירת מדריכי וורדפרס שעלולים לחסום את המסך
   await page.keyboard.press("Escape");
-  await page.waitForTimeout(1000); // זמן למערכת להגיב
-
-  const closeBtn = page.locator('button[aria-label="Close dialog"]');
-  if (await closeBtn.isVisible()) {
-    await closeBtn.click({ force: true });
-  }
-
-  // 4. מילוי הכותרת - שימוש ב-Selector הכי בסיסי שיש
-  // הוספנו לחיצה (Click) לפני המילוי כדי "להעיר" את השדה
-  // 4. מילוי הכותרת - שימוש ב-Class במקום בטקסט האפור (Placeholder)
-  // אנחנו משתמשים ב-locator שמחפש את ה-Class הספציפי של וורדפרס
-  const titleField = page.locator(
-    ".editor-post-title__input, h1.editor-post-title__input",
-  );
-
-  // לחיצה כדי לוודא שהסמן (Cursor) נמצא בתוך השדה
-  await titleField.click({ force: true });
-
-  // מילוי הטקסט - הפעם הוא יחליף את ה"Add title" האפור
-  await titleField.fill("פוסט בדיקה ללא Placeholder", { force: true });
-
-  // 5. תהליך הפרסום (Publish)
-  // לחיצה על כפתור ה-Publish הראשי
   await page
-    .getByRole("button", { name: "Publish", exact: true })
-    .first()
-    .click({ force: true });
+    .locator('iframe[name="editor-canvas"]')
+    .waitFor({ state: "attached", timeout: 30000 });
+  // 3. מילוי הכותרת בתוך ה-iframe
+  // שימוש ב-frameLocator לפי ה-name שזיהינו ב-SelectorsHub
+  const editorFrame = page.frameLocator('iframe[name="editor-canvas"]');
+  const titleField = editorFrame.locator("h1.editor-post-title__input");
 
-  // המתנה קצרה להופעת הפאנל הצידי ולחיצה על אישור הפרסום
-  await page.waitForTimeout(500);
-  await page
-    .getByRole("region", { name: "Editor publish" })
-    .getByRole("button", { name: "Publish", exact: true })
-    .click({ force: true });
+  await titleField.waitFor({ state: "visible" });
+  await titleField.click();
+  await titleField.fill("פוסט אוטומציה סופי בהחלט");
 
-  // 6. אימות סופי - מחכים שה-URL יכיל את מזהה הפוסט
+  // 4. לחיצה ראשונה על Publish (הכפתור העליון)
+  // שימוש ב-XPath שביקשת עם .first() כי יש שני כפתורים כאלה בדף
+  const firstPublishBtn = page
+    .locator("//button[normalize-space()='Publish']")
+    .first();
+  await expect(firstPublishBtn).toBeEnabled();
+  await firstPublishBtn.click();
+
+  // 5. לחיצה שנייה על Publish (הכפתור בפאנל האישור)
+  // כאן אנחנו משתמשים ב-.last() כדי לתפוס את הכפתור שנוסף בתוך תפריט הצד
+  const finalPublishBtn = page
+    .locator("//button[normalize-space()='Publish']")
+    .last();
+
+  // מחכים שהכפתור השני יהיה גלוי ולחיץ לפני הפעולה
+  await finalPublishBtn.waitFor({ state: "visible" });
+  await finalPublishBtn.click();
+
+  // 6. אימות (Assertion) - בדיקה שהפוסט באמת פורסם
+  // וורדפרס מעביר ל-URL שמכיל את ה-ID של הפוסט
   await expect(page).toHaveURL(/post=\d+/);
 
-  console.log("הטסט הסתיים בהצלחה!");
+  console.log("Success: Post was published using the provided XPath!");
 });
