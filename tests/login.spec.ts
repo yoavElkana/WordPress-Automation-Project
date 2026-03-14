@@ -1,31 +1,19 @@
 import { test, expect } from "@playwright/test";
-
+import { LoginPage } from "../pages/LoginPage";
 test("LOGIN - Positive Test", async ({ page }) => {
-  // 1. כניסה לדף הלוגין שרץ בדוקר שלך
-  await page.goto("http://localhost:8080/wp-login.php");
-
-  // 2. הזנת פרטי המשתמש (תחליף לפרטים שיצרת בהתקנה)
-  await page.fill("#user_login", "admin");
-  await page.fill("#user_pass", "Yoav2001!");
-
-  // 3. לחיצה על כפתור התחברות
-  await page.click("#wp-submit");
-
-  // 4. בדיקה (Assertion) - האם הגענו ללוח הבקרה?
+  const loginPage = new LoginPage(page);
+  await loginPage.navigate();
+  await loginPage.login("admin", "Yoav2001!");
   await expect(page).toHaveURL(/.*wp-admin/);
-
+  const adminBar = page.locator("#wpadminbar");
+  await expect(adminBar).toBeVisible();
   console.log("The login test (with valid user) was completed sucssfully  ");
 });
 
 test("LOGIN - Negative Test", async ({ page }) => {
-  await page.goto("http://localhost:8080/wp-login.php");
-
-  // הזנת פרטים שגויים בכוונה
-  await page.fill("#user_login", "admin");
-  await page.fill("#user_pass", "wrong_password_123");
-  await page.click("#wp-submit");
-
-  // בדיקה שהודעת השגיאה מופיעה על המסך
+  const loginPage = new LoginPage(page);
+  await loginPage.navigate();
+  await loginPage.login("admin", "wrong_password_123");
   const errorMessage = page.locator("#login_error");
   await expect(errorMessage).toBeVisible();
   await expect(errorMessage).toContainText("Error");
